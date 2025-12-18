@@ -1,0 +1,9 @@
+{
+  "name": "downdetector-telegram-alerts",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "downdetector-api": "^2.1.0"
+  }
+}
