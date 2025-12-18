@@ -23,7 +23,7 @@ jobs:
           restore-keys: |
             dd-state-
 
-      - run: npm ci
+     - run: npm install
 
       - name: Run monitor
         env:
