@@ -1,0 +1,18 @@
+{
+  "threshold": 10,
+  "cooldownMinutes": 30,
+  "country": "it",
+  "services": [
+    { "name": "Sky Wifi",  "slug": "sky-wifi",  "url": "https://downdetector.it/problemi/sky-wifi/" },
+    { "name": "Sky",       "slug": "sky",      "url": "https://downdetector.it/problemi/sky/" },
+    { "name": "Vodafone",  "slug": "vodafone", "url": "https://downdetector.it/problemi/vodafone/" },
+    { "name": "Fastweb",   "slug": "fastweb",  "url": "https://downdetector.it/problemi/fastweb/" },
+    { "name": "Iliad",     "slug": "iliad",    "url": "https://downdetector.it/problemi/iliad/" },
+    { "name": "WINDTRE",   "slug": "windtre",  "url": "https://downdetector.it/problemi/windtre/" },
+    { "name": "TIM",       "slug": "tim",      "url": "https://downdetector.it/problemi/tim/" },
+    { "name": "Teams",     "slug": "teams",    "url": "https://downdetector.it/problemi/teams/" },
+    { "name": "Amazon",    "slug": "amazon",   "url": "https://downdetector.it/problemi/amazon/" },
+    { "name": "Netflix",   "slug": "netflix",  "url": "https://downdetector.it/problemi/netflix/" },
+    { "name": "Eolo",      "slug": "eolo",     "url": "https://downdetector.it/problemi/eolo/" }
+  ]
+}
