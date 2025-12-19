@@ -2,16 +2,19 @@ name: Downdetector Monitor
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
-  workflow_dispatch:
+    - cron: "*/5 * * * *"   # ogni 5 minuti
+  workflow_dispatch:        # avvio manuale
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
 
@@ -23,7 +26,8 @@ jobs:
           restore-keys: |
             dd-state-
 
-     - run: npm install
+      - name: Install dependencies
+        run: npm install
 
       - name: Run monitor
         env:
