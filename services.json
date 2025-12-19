@@ -1,6 +1,6 @@
 {
   "threshold": 1,
-  "cooldownMinutes": 30,
+  "cooldownMinutes": 15,
   "country": "it",
   "services": [
     { "name": "Sky Wifi",  "slug": "sky-wifi",  "url": "https://downdetector.it/problemi/sky-wifi/" },
