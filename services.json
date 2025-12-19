@@ -1,5 +1,5 @@
 {
-  "threshold": 5,
+  "threshold": 1,
   "cooldownMinutes": 0,
   "country": "it",
   "services": [
