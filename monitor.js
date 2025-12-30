@@ -1,7 +1,9 @@
 import fs from "fs";
 import path from "path";
+import { evaluateAtlas } from "./providers/ripeAtlas.js";
+import { checkNetblocks } from "./providers/netblocks.js";
 
-const CFG_PATH = path.resolve("services.json");
+const SOURCES_PATH = path.resolve("sources.json");
 const STATE_PATH = path.resolve("state.json");
 
 function loadJson(p, fallback) {
@@ -19,87 +21,91 @@ async function telegramSend(token, chatId, text) {
   if (!res.ok) throw new Error(`Telegram send failed: ${res.status} ${await res.text()}`);
 }
 
-/**
- * Heuristics: detect "incident" from page content.
- * We aim to be stable over time (avoid fragile selectors).
- */
-function hasIncident(html) {
-  const h = html.toLowerCase();
-
-  // Strong textual signals (IT/EN) commonly shown when DD flags an incident
-  const signals = [
-    "segnalazioni degli utenti indicano problemi",
-    "gli utenti segnalano problemi",
-    "segnalazioni indicano problemi",
-    "user reports indicate problems",
-    "reports indicate problems",
-    "problems at"
-  ];
-
-  // Count hits across signals; require at least 1 strong hit
-  let hits = 0;
-  for (const s of signals) if (h.includes(s)) hits++;
-
-  return hits >= 1;
-}
-
-function msgStart(svc) {
+function atlasStartMsg(targetName, details) {
   return [
-    "🚨 Downdetector Incident START",
-    `Servizio: ${svc.name}`,
-    `Link: ${svc.url}`,
-    `Time: ${new Date().toISOString()}`,
-    "",
-    "Rilevato: Downdetector indica problemi per questo servizio."
+    "🚨 RIPE Atlas Incident START (IT probes)",
+    `Target: ${targetName}`,
+    `Fail ratio: ${(details.failRatio * 100).toFixed(0)}% (fail ${details.fail}/${details.total})`,
+    `Time: ${new Date().toISOString()}`
   ].join("\n");
 }
 
-function msgResolved(svc) {
+function atlasResolvedMsg(targetName) {
   return [
-    "✅ Downdetector Incident RESOLVED",
-    `Servizio: ${svc.name}`,
-    `Link: ${svc.url}`,
-    `Time: ${new Date().toISOString()}`,
-    "",
-    "Rilevato: Downdetector non mostra più indicatori di problemi."
+    "✅ RIPE Atlas Incident RESOLVED (IT probes)",
+    `Target: ${targetName}`,
+    `Time: ${new Date().toISOString()}`
+  ].join("\n");
+}
+
+function netblocksMsg(item) {
+  return [
+    "📰 NetBlocks update",
+    `Page: ${item.page}`,
+    `Title: ${item.title}`,
+    `Link: ${item.href}`,
+    `Time: ${new Date().toISOString()}`
   ].join("\n");
 }
 
 async function main() {
-  const cfg = loadJson(CFG_PATH, null);
-  if (!cfg) throw new Error("Missing services.json");
+  const sources = loadJson(SOURCES_PATH, null);
+  if (!sources) throw new Error("Missing sources.json");
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID");
 
-  // status[slug] = true/false (incident state)
-  const state = loadJson(STATE_PATH, { status: {} });
+  const state = loadJson(STATE_PATH, {
+    atlas: { status: {}, okRuns: {} }, // status[targetId]=bool incident; okRuns[targetId]=consecutive ok
+    netblocks: { lastHrefByPage: {} }
+  });
 
-  for (const svc of cfg.services) {
-    try {
-      const res = await fetch(svc.url, {
-        headers: { "User-Agent": "Mozilla/5.0 (dd-monitor personal)" }
-      });
+  // ---- RIPE Atlas ----
+  if (sources.ripeAtlas?.enabled) {
+    const apiKey = process.env.RIPE_ATLAS_API_KEY;
+    if (!apiKey) throw new Error("Missing RIPE_ATLAS_API_KEY secret");
 
-      // If DD blocks/returns something odd, treat as no incident but log it
-      const html = await res.text();
-      const incident = hasIncident(html);
+    const atlas = await evaluateAtlas({ apiKey, state, cfg: sources.ripeAtlas });
 
-      const prev = state.status[svc.slug] ?? false;
+    // per target: incident if failRatio >= threshold
+    for (const t of sources.ripeAtlas.targets) {
+      const stats = atlas.httpStatus[t.id];
+      const prev = state.atlas.status[t.id] ?? false;
+      const nowIncident = stats.failRatio >= sources.ripeAtlas.httpFailRatioThreshold;
 
-      // Notify only on state transitions
-      if (incident && !prev) {
-        await telegramSend(token, chatId, msgStart(svc));
-      } else if (!incident && prev) {
-        await telegramSend(token, chatId, msgResolved(svc));
+      if (nowIncident) {
+        state.atlas.okRuns[t.id] = 0;
+        if (!prev) {
+          await telegramSend(token, chatId, atlasStartMsg(t.name, stats));
+        }
+      } else {
+        // resolved only after N consecutive OK runs to avoid flapping
+        const okRuns = (state.atlas.okRuns[t.id] ?? 0) + 1;
+        state.atlas.okRuns[t.id] = okRuns;
+        if (prev && okRuns >= sources.ripeAtlas.resolvedConsecutiveOkRuns) {
+          await telegramSend(token, chatId, atlasResolvedMsg(t.name));
+          state.atlas.status[t.id] = false;
+          continue;
+        }
       }
 
-      state.status[svc.slug] = incident;
+      state.atlas.status[t.id] = nowIncident;
+      console.log(`[atlas] ${t.id}: incident=${nowIncident} failRatio=${stats.failRatio.toFixed(2)}`);
+    }
+  }
 
-      console.log(`[${svc.slug}] incident=${incident} (prev=${prev})`);
-    } catch (e) {
-      console.error(`[${svc.slug}] error: ${e.message}`);
+  // ---- NetBlocks ----
+  if (sources.netblocks?.enabled) {
+    const updates = await checkNetblocks({ watchPages: sources.netblocks.watchPages });
+    for (const u of updates) {
+      const last = state.netblocks.lastHrefByPage[u.page];
+      if (u.href && u.href !== last) {
+        // first run will also notify; if you prefer no notify on first run, set last=href and skip
+        await telegramSend(token, chatId, netblocksMsg(u));
+        state.netblocks.lastHrefByPage[u.page] = u.href;
+      }
+      console.log(`[netblocks] ${u.page}: latest=${u.href}`);
     }
   }
 
