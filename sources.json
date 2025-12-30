@@ -1,0 +1,25 @@
+{
+  "ripeAtlas": {
+    "enabled": true,
+    "countryCode": "IT",
+    "probeCount": 30,
+    "httpFailRatioThreshold": 0.3,
+    "resolvedConsecutiveOkRuns": 2,
+    "targets": [
+      { "id": "netflix", "name": "Netflix", "url": "https://www.netflix.com/" },
+      { "id": "primevideo", "name": "Prime Video", "url": "https://www.primevideo.com/" },
+      { "id": "teams", "name": "Teams Web", "url": "https://teams.microsoft.com/" }
+    ],
+    "pingTargets": [
+      { "id": "cloudflare-dns", "name": "1.1.1.1", "host": "1.1.1.1" },
+      { "id": "google-dns", "name": "8.8.8.8", "host": "8.8.8.8" }
+    ]
+  },
+  "netblocks": {
+    "enabled": true,
+    "watchPages": [
+      "https://netblocks.org/",
+      "https://netblocks.org/tag/global-outage"
+    ]
+  }
+}
