@@ -4,15 +4,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "cheerio": "^1.0.0",
     "downdetector-api": "^2.1.0"
-  }
-}
-{
-  "name": "outage-monitor",
-  "version": "1.0.0",
-  "type": "module",
-  "private": true,
-  "dependencies": {
-    "cheerio": "^1.0.0"
   }
 }
