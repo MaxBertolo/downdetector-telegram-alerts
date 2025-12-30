@@ -22,7 +22,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: state.json
-          key: dd-state-${{ github.ref_name }}
+          key: dd-state-${{ github.ref_name }}-incident-v1
           restore-keys: |
             dd-state-
 
