@@ -1,25 +1,13 @@
 import fs from "fs";
 import path from "path";
-import { downdetector } from "downdetector-api";
 
 const CFG_PATH = path.resolve("services.json");
 const STATE_PATH = path.resolve("state.json");
 
 function loadJson(p, fallback) {
-  try { return JSON.parse(fs.readFileSync(p, "utf-8")); }
-  catch { return fallback; }
+  try { return JSON.parse(fs.readFileSync(p, "utf-8")); } catch { return fallback; }
 }
-function saveJson(p, obj) {
-  fs.writeFileSync(p, JSON.stringify(obj, null, 2));
-}
-
-function nowIso() { return new Date().toISOString(); }
-
-function minutesBetween(aIso, bIso) {
-  const a = new Date(aIso).getTime();
-  const b = new Date(bIso).getTime();
-  return Math.abs(b - a) / 60000;
-}
+function saveJson(p, obj) { fs.writeFileSync(p, JSON.stringify(obj, null, 2)); }
 
 async function telegramSend(token, chatId, text) {
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
@@ -28,22 +16,52 @@ async function telegramSend(token, chatId, text) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true })
   });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Telegram send failed: ${res.status} ${body}`);
-  }
+  if (!res.ok) throw new Error(`Telegram send failed: ${res.status} ${await res.text()}`);
 }
 
-function formatAlert(svc, reportsNow, baselineNow) {
-  const ratio = baselineNow > 0 ? (reportsNow / baselineNow).toFixed(1) : "∞";
+/**
+ * Heuristics: detect "incident" from page content.
+ * We aim to be stable over time (avoid fragile selectors).
+ */
+function hasIncident(html) {
+  const h = html.toLowerCase();
+
+  // Strong textual signals (IT/EN) commonly shown when DD flags an incident
+  const signals = [
+    "segnalazioni degli utenti indicano problemi",
+    "gli utenti segnalano problemi",
+    "segnalazioni indicano problemi",
+    "user reports indicate problems",
+    "reports indicate problems",
+    "problems at"
+  ];
+
+  // Count hits across signals; require at least 1 strong hit
+  let hits = 0;
+  for (const s of signals) if (h.includes(s)) hits++;
+
+  return hits >= 1;
+}
+
+function msgStart(svc) {
   return [
-    "🚨 Downdetector Alert",
+    "🚨 Downdetector Incident START",
     `Servizio: ${svc.name}`,
-    `Reports (ultimo punto): ${reportsNow}`,
-    `Baseline (ultimo punto): ${baselineNow}`,
-    `Rapporto reports/baseline: ${ratio}`,
     `Link: ${svc.url}`,
-    `Time: ${nowIso()}`
+    `Time: ${new Date().toISOString()}`,
+    "",
+    "Rilevato: Downdetector indica problemi per questo servizio."
+  ].join("\n");
+}
+
+function msgResolved(svc) {
+  return [
+    "✅ Downdetector Incident RESOLVED",
+    `Servizio: ${svc.name}`,
+    `Link: ${svc.url}`,
+    `Time: ${new Date().toISOString()}`,
+    "",
+    "Rilevato: Downdetector non mostra più indicatori di problemi."
   ].join("\n");
 }
 
@@ -53,42 +71,40 @@ async function main() {
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID env vars");
+  if (!token || !chatId) throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID");
 
-  const state = loadJson(STATE_PATH, { lastSent: {} });
-  const { threshold, cooldownMinutes, country, services } = cfg;
+  // status[slug] = true/false (incident state)
+  const state = loadJson(STATE_PATH, { status: {} });
 
-  let alerts = 0;
-
-  for (const svc of services) {
+  for (const svc of cfg.services) {
     try {
-      // downdetector-api returns arrays of {date, value} for reports & baseline :contentReference[oaicite:12]{index=12}
-      const data = await downdetector(svc.slug, country);
+      const res = await fetch(svc.url, {
+        headers: { "User-Agent": "Mozilla/5.0 (dd-monitor personal)" }
+      });
 
-      const reportsSeries = data?.reports ?? [];
-      const baselineSeries = data?.baseline ?? [];
-      const reportsNow = reportsSeries.at(-1)?.value ?? 0;
-      const baselineNow = baselineSeries.at(-1)?.value ?? 0;
+      // If DD blocks/returns something odd, treat as no incident but log it
+      const html = await res.text();
+      const incident = hasIncident(html);
 
-      const shouldAlert = reportsNow > threshold;
+      const prev = state.status[svc.slug] ?? false;
 
-      // cooldown per-service
-      const last = state.lastSent[svc.slug];
-      const cooledDown = !last || minutesBetween(last, nowIso()) >= cooldownMinutes;
-
-      if (shouldAlert && cooledDown) {
-        await telegramSend(token, chatId, formatAlert(svc, reportsNow, baselineNow));
-        state.lastSent[svc.slug] = nowIso();
-        alerts += 1;
+      // Notify only on state transitions
+      if (incident && !prev) {
+        await telegramSend(token, chatId, msgStart(svc));
+      } else if (!incident && prev) {
+        await telegramSend(token, chatId, msgResolved(svc));
       }
+
+      state.status[svc.slug] = incident;
+
+      console.log(`[${svc.slug}] incident=${incident} (prev=${prev})`);
     } catch (e) {
-      // optional: you can also telegram errors, but it may spam; keep as log
-      console.error(`[${svc.slug}] error`, e.message);
+      console.error(`[${svc.slug}] error: ${e.message}`);
     }
   }
 
   saveJson(STATE_PATH, state);
-  console.log(`Done. Alerts sent: ${alerts}`);
+  console.log("Done.");
 }
 
 await main();
