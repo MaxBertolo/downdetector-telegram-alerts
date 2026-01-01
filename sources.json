@@ -1,14 +1,20 @@
 {
+  "downdetector": {
+    "baseUrl": "https://downdetector.it/problemi",
+    "reportsThreshold": 10,
+    "windowMinutes": 30
+  },
+  "http": {
+    "timeoutMs": 8000
+  },
   "netblocks": {
+    "enabled": true,
     "pages": [
       "https://netblocks.org/reports/",
       "https://netblocks.org/"
     ]
   },
-  "downdetector": {
-    "baseUrl": "https://downdetector.it/problemi"
-  },
-  "http": {
-    "timeoutMs": 8000
+  "telegram": {
+    "quicklookUrl": "https://atlas.ripe.net/use-cases/quicklook"
   }
 }
