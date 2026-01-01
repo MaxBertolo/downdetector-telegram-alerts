@@ -1,116 +1,113 @@
 import fs from "fs";
-import path from "path";
-import { evaluateAtlas } from "./providers/ripeAtlas.js";
+import services from "./services.json" assert { type: "json" };
+import sources from "./sources.json" assert { type: "json" };
 import { checkNetblocks } from "./providers/netblocks.js";
 
-const SOURCES_PATH = path.resolve("sources.json");
-const STATE_PATH = path.resolve("state.json");
+const STATE_FILE = "state.json";
+const TELEGRAM_API = "https://api.telegram.org";
 
-function loadJson(p, fallback) {
-  try { return JSON.parse(fs.readFileSync(p, "utf-8")); } catch { return fallback; }
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+
+if (!BOT_TOKEN || !CHAT_ID) {
+  throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID");
 }
-function saveJson(p, obj) { fs.writeFileSync(p, JSON.stringify(obj, null, 2)); }
 
-async function telegramSend(token, chatId, text) {
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  const res = await fetch(url, {
+// ---------- utils ----------
+function loadState() {
+  if (!fs.existsSync(STATE_FILE)) return {};
+  return JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
+}
+
+function saveState(state) {
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+async function sendTelegram(message) {
+  const url = `${TELEGRAM_API}/bot${BOT_TOKEN}/sendMessage`;
+  await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true })
+    body: JSON.stringify({
+      chat_id: CHAT_ID,
+      text: message,
+      parse_mode: "Markdown"
+    })
   });
-  if (!res.ok) throw new Error(`Telegram send failed: ${res.status} ${await res.text()}`);
 }
 
-function atlasStartMsg(targetName, details) {
-  return [
-    "🚨 RIPE Atlas Incident START (IT probes)",
-    `Target: ${targetName}`,
-    `Fail ratio: ${(details.failRatio * 100).toFixed(0)}% (fail ${details.fail}/${details.total})`,
-    `Time: ${new Date().toISOString()}`
-  ].join("\n");
+async function httpCheck(url) {
+  try {
+    const res = await fetch(url, { method: "HEAD", timeout: 8000 });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
-function atlasResolvedMsg(targetName) {
-  return [
-    "✅ RIPE Atlas Incident RESOLVED (IT probes)",
-    `Target: ${targetName}`,
-    `Time: ${new Date().toISOString()}`
-  ].join("\n");
-}
+// ---------- main ----------
+(async function main() {
+  const state = loadState();
+  const incidents = [];
 
-function netblocksMsg(item) {
-  return [
-    "📰 NetBlocks update",
-    `Page: ${item.page}`,
-    `Title: ${item.title}`,
-    `Link: ${item.href}`,
-    `Time: ${new Date().toISOString()}`
-  ].join("\n");
-}
-
-async function main() {
-  const sources = loadJson(SOURCES_PATH, null);
-  if (!sources) throw new Error("Missing sources.json");
-
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID");
-
-  const state = loadJson(STATE_PATH, {
-    atlas: { status: {}, okRuns: {} }, // status[targetId]=bool incident; okRuns[targetId]=consecutive ok
-    netblocks: { lastHrefByPage: {} }
+  // 1️⃣ NetBlocks (macro)
+  const netblocksFindings = await checkNetblocks({
+    watchPages: sources.netblocks.pages
   });
 
-  // ---- RIPE Atlas ----
-  if (sources.ripeAtlas?.enabled) {
-    const apiKey = process.env.RIPE_ATLAS_API_KEY;
-    if (!apiKey) throw new Error("Missing RIPE_ATLAS_API_KEY secret");
+  // 2️⃣ HTTP checks (technical)
+  for (const service of services) {
+    let failures = 0;
 
-    const atlas = await evaluateAtlas({ apiKey, state, cfg: sources.ripeAtlas });
+    for (const url of service.checkUrls) {
+      const ok = await httpCheck(url);
+      if (!ok) failures++;
+    }
 
-    // per target: incident if failRatio >= threshold
-    for (const t of sources.ripeAtlas.targets) {
-      const stats = atlas.httpStatus[t.id];
-      const prev = state.atlas.status[t.id] ?? false;
-      const nowIncident = stats.failRatio >= sources.ripeAtlas.httpFailRatioThreshold;
+    const httpIncident = failures >= service.httpFailureThreshold;
 
-      if (nowIncident) {
-        state.atlas.okRuns[t.id] = 0;
-        if (!prev) {
-          await telegramSend(token, chatId, atlasStartMsg(t.name, stats));
-        }
-      } else {
-        // resolved only after N consecutive OK runs to avoid flapping
-        const okRuns = (state.atlas.okRuns[t.id] ?? 0) + 1;
-        state.atlas.okRuns[t.id] = okRuns;
-        if (prev && okRuns >= sources.ripeAtlas.resolvedConsecutiveOkRuns) {
-          await telegramSend(token, chatId, atlasResolvedMsg(t.name));
-          state.atlas.status[t.id] = false;
-          continue;
-        }
-      }
+    // 3️⃣ Correlazione
+    const netblocksMatch = netblocksFindings.some(f =>
+      f.title.toLowerCase().includes(service.name.toLowerCase())
+    );
 
-      state.atlas.status[t.id] = nowIncident;
-      console.log(`[atlas] ${t.id}: incident=${nowIncident} failRatio=${stats.failRatio.toFixed(2)}`);
+    const confidence =
+      (httpIncident ? 1 : 0) +
+      (netblocksMatch ? 1 : 0);
+
+    if (confidence >= service.alertConfidence) {
+      incidents.push({
+        service: service.name,
+        httpIncident,
+        netblocksMatch
+      });
     }
   }
 
-  // ---- NetBlocks ----
-  if (sources.netblocks?.enabled) {
-    const updates = await checkNetblocks({ watchPages: sources.netblocks.watchPages });
-    for (const u of updates) {
-      const last = state.netblocks.lastHrefByPage[u.page];
-      if (u.href && u.href !== last) {
-        // first run will also notify; if you prefer no notify on first run, set last=href and skip
-        await telegramSend(token, chatId, netblocksMsg(u));
-        state.netblocks.lastHrefByPage[u.page] = u.href;
-      }
-      console.log(`[netblocks] ${u.page}: latest=${u.href}`);
+  // 4️⃣ Alert solo se nuovo
+  for (const incident of incidents) {
+    if (state[incident.service]) continue;
+
+    const message = `
+🚨 *DISERVIZIO RILEVATO*
+*Servizio:* ${incident.service}
+
+• HTTP check: ${incident.httpIncident ? "❌ KO" : "✅ OK"}
+• NetBlocks: ${incident.netblocksMatch ? "⚠️ Segnalazioni" : "—"}
+
+_Fonte automatica_
+`;
+
+    await sendTelegram(message);
+    state[incident.service] = true;
+  }
+
+  // reset stati se tutto ok
+  for (const s of services) {
+    if (!incidents.find(i => i.service === s.name)) {
+      delete state[s.name];
     }
   }
 
-  saveJson(STATE_PATH, state);
-  console.log("Done.");
-}
-
-await main();
+  saveState(state);
+})();
