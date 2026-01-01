@@ -1,20 +1,17 @@
-name: Downdetector Monitor
+name: Downdetector Monitor (Alerts)
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # ogni 5 minuti
-  workflow_dispatch:        # avvio manuale
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
@@ -22,22 +19,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: state.json
-          key: dd-state-${{ github.ref_name }}-incident-v1
+          key: dd-state-${{ github.ref_name }}-v2
           restore-keys: |
-            dd-state-${{ github.ref_name }}-incident-v1
+            dd-state-${{ github.ref_name }}-v2
             dd-state-
 
       - name: Install dependencies
         run: npm install
 
-      - name: Run monitor
+      - name: Run monitor (alerts)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_MODE: alert
         run: node monitor.js
 
       - name: Save state cache
         uses: actions/cache@v4
         with:
           path: state.json
-          key: dd-state-${{ github.ref_name }}-incident-v1
+          key: dd-state-${{ github.ref_name }}-v2
