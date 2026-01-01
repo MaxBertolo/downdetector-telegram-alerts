@@ -1,13 +1,15 @@
-import cheerio from "cheerio";
+import { load } from "cheerio";
 
 async function fetchHtml(url) {
-  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (personal-monitor)" } });
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (personal-monitor)" }
+  });
   if (!res.ok) throw new Error(`NetBlocks HTTP ${res.status}: ${await res.text()}`);
   return res.text();
 }
 
 function extractLatestPost(html) {
-  const $ = cheerio.load(html);
+  const $ = load(html);
 
   // Best-effort: first article link + title
   const firstLink = $("article a").first();
