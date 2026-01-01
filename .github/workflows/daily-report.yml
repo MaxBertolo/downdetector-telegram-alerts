@@ -1,0 +1,42 @@
+name: Downdetector Monitor (Daily Report)
+
+on:
+  schedule:
+    # 07:05 UTC = 08:05 Europe/Rome in inverno (CET)
+    - cron: "5 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Restore state cache
+        uses: actions/cache@v4
+        with:
+          path: state.json
+          key: dd-state-${{ github.ref_name }}-v2
+          restore-keys: |
+            dd-state-${{ github.ref_name }}-v2
+            dd-state-
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run monitor (daily)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_MODE: daily
+        run: node monitor.js
+
+      - name: Save state cache
+        uses: actions/cache@v4
+        with:
+          path: state.json
+          key: dd-state-${{ github.ref_name }}-v2
