@@ -1,40 +1,39 @@
 [
-  { "name": "Google", "downdetectorSlug": "google", "checkUrls": ["https://www.google.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "YouTube", "downdetectorSlug": "youtube", "checkUrls": ["https://www.youtube.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "Facebook", "downdetectorSlug": "facebook", "checkUrls": ["https://www.facebook.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "Instagram", "downdetectorSlug": "instagram", "checkUrls": ["https://www.instagram.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "Google", "category": "internet", "downdetectorSlug": "google", "checkUrls": ["https://www.google.com"] },
+  { "name": "YouTube", "category": "streaming", "downdetectorSlug": "youtube", "checkUrls": ["https://www.youtube.com"] },
 
-  { "name": "Microsoft", "downdetectorSlug": "microsoft", "checkUrls": ["https://www.microsoft.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "Azure", "downdetectorSlug": "microsoft-azure", "checkUrls": ["https://portal.azure.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "Meta", "category": "social", "downdetectorSlug": "facebook", "checkUrls": ["https://www.facebook.com"] },
+  { "name": "Facebook", "category": "social", "downdetectorSlug": "facebook", "checkUrls": ["https://www.facebook.com"] },
+  { "name": "Instagram", "category": "social", "downdetectorSlug": "instagram", "checkUrls": ["https://www.instagram.com"] },
 
-  { "name": "Amazon", "downdetectorSlug": "amazon", "checkUrls": ["https://www.amazon.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "Prime Video", "downdetectorSlug": "amazon-prime-video", "checkUrls": ["https://www.primevideo.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "AWS", "downdetectorSlug": "amazon-web-services", "checkUrls": ["https://status.aws.amazon.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "Microsoft", "category": "cloud", "downdetectorSlug": "microsoft", "checkUrls": ["https://www.microsoft.com"] },
+  { "name": "Azure", "category": "cloud", "downdetectorSlug": "microsoft-azure", "checkUrls": ["https://portal.azure.com"] },
 
-  { "name": "Google Cloud Platform", "downdetectorSlug": "google-cloud", "checkUrls": ["https://status.cloud.google.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "Amazon", "category": "internet", "downdetectorSlug": "amazon", "checkUrls": ["https://www.amazon.it"] },
+  { "name": "Prime Video", "category": "streaming", "downdetectorSlug": "amazon-prime-video", "checkUrls": ["https://www.primevideo.com"] },
+  { "name": "AWS", "category": "cloud", "downdetectorSlug": "amazon-web-services", "checkUrls": ["https://status.aws.amazon.com"] },
 
-  { "name": "TIM", "downdetectorSlug": "tim", "checkUrls": ["https://www.tim.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "Iliad", "downdetectorSlug": "iliad", "checkUrls": ["https://www.iliad.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "Google Cloud Platform", "category": "cloud", "downdetectorSlug": "google-cloud", "checkUrls": ["https://status.cloud.google.com"] },
 
-  { "name": "Sky TV", "downdetectorSlug": "sky", "checkUrls": ["https://www.sky.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "Sky Wifi", "downdetectorSlug": "sky-wifi", "checkUrls": ["https://www.skywifi.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "TIM", "category": "rete", "downdetectorSlug": "tim", "checkUrls": ["https://www.tim.it"] },
+  { "name": "Iliad", "category": "rete", "downdetectorSlug": "iliad", "checkUrls": ["https://www.iliad.it"] },
 
-  { "name": "WindTre", "downdetectorSlug": "wind", "checkUrls": ["https://www.windtre.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "Sky TV", "category": "streaming", "downdetectorSlug": "sky", "checkUrls": ["https://www.sky.it"] },
+  { "name": "Sky Wifi", "category": "rete", "downdetectorSlug": "sky-wifi", "checkUrls": ["https://www.skywifi.it"] },
 
-  { "name": "Fastweb+Vodafone", "downdetectorSlug": "vodafone", "checkUrls": ["https://www.fastweb.it", "https://www.vodafone.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "Fastweb", "downdetectorSlug": "fastweb", "checkUrls": ["https://www.fastweb.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "Vodafone", "downdetectorSlug": "vodafone", "checkUrls": ["https://www.vodafone.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "WindTre", "category": "rete", "downdetectorSlug": "wind", "checkUrls": ["https://www.windtre.it"] },
+  { "name": "Fastweb", "category": "rete", "downdetectorSlug": "fastweb", "checkUrls": ["https://www.fastweb.it"] },
+  { "name": "Vodafone", "category": "rete", "downdetectorSlug": "vodafone", "checkUrls": ["https://www.vodafone.it"] },
+  { "name": "Fastweb+Vodafone", "category": "rete", "downdetectorSlug": "fastweb", "checkUrls": ["https://www.fastweb.it", "https://www.vodafone.it"] },
 
-  { "name": "Netflix", "downdetectorSlug": "netflix", "checkUrls": ["https://www.netflix.com"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "Netflix", "category": "streaming", "downdetectorSlug": "netflix", "checkUrls": ["https://www.netflix.com"] },
 
-  { "name": "Rai", "downdetectorSlug": "rai", "checkUrls": ["https://www.rai.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-  { "name": "RaiPlay", "downdetectorSlug": "raiplay", "checkUrls": ["https://www.raiplay.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
+  { "name": "Rai", "category": "streaming", "downdetectorSlug": "rai", "checkUrls": ["https://www.rai.it"] },
+  { "name": "RaiPlay", "category": "streaming", "downdetectorSlug": "raiplay", "checkUrls": ["https://www.raiplay.it"] },
+  { "name": "Mediaset", "category": "streaming", "downdetectorSlug": "mediaset", "checkUrls": ["https://www.mediaset.it"] },
+  { "name": "RaiPlay (direct)", "category": "streaming", "downdetectorSlug": "raiplay", "checkUrls": ["https://www.raiplay.it/dirette"] },
 
-  { "name": "Mediaset", "downdetectorSlug": "mediaset", "checkUrls": ["https://www.mediaset.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-
-  { "name": "NOW", "downdetectorSlug": "now-tv", "checkUrls": ["https://www.nowtv.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-
-  { "name": "Eurosport", "downdetectorSlug": "eurosport", "checkUrls": ["https://www.eurosport.it"], "httpFailureThreshold": 1, "alertConfidence": 2 },
-
-  { "name": "Disney+", "downdetectorSlug": "disney-plus", "checkUrls": ["https://www.disneyplus.com"], "httpFailureThreshold": 1, "alertConfidence": 2 }
+  { "name": "NOW", "category": "streaming", "downdetectorSlug": "now-tv", "checkUrls": ["https://www.nowtv.it"] },
+  { "name": "Eurosport", "category": "streaming", "downdetectorSlug": "eurosport", "checkUrls": ["https://www.eurosport.it"] },
+  { "name": "Disney+", "category": "streaming", "downdetectorSlug": "disney-plus", "checkUrls": ["https://www.disneyplus.com"] }
 ]
