@@ -9,8 +9,8 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 // RUN_MODE:
-// - "alert" (default): sends per-service start/resolved alerts
-// - "daily": sends one daily summary snapshot
+// - "alert" (default): start/resolved alerts per service
+// - "daily": one daily snapshot message
 const MODE = process.env.RUN_MODE || "alert";
 
 if (!BOT_TOKEN || !CHAT_ID) {
@@ -29,20 +29,16 @@ function loadState() {
     }
   }
 
-  // default schema
   const state = { incidents: {}, netblocks: {} };
 
-  // invalid -> defaults
   if (!raw || typeof raw !== "object") return state;
 
-  // already new schema -> merge
   if (raw.incidents && typeof raw.incidents === "object") state.incidents = raw.incidents;
   if (raw.netblocks && typeof raw.netblocks === "object") state.netblocks = raw.netblocks;
 
-  // migration: old schema was { "ServiceName": true } or similar
+  // migration from old format: { "ServiceName": true }
   for (const [k, v] of Object.entries(raw)) {
     if (k === "incidents" || k === "netblocks") continue;
-
     if (v === true && !state.incidents[k]) {
       state.incidents[k] = { startedAt: new Date().toISOString(), migrated: true };
     }
@@ -79,18 +75,26 @@ async function telegramSend(text, buttons = null) {
   }
 }
 
-// -------------------- HTTP CHECK --------------------
-async function httpHead(url, timeoutMs) {
+// -------------------- HTTP CHECK (ROBUST) --------------------
+// Many services block HEAD or return 403 to bots.
+// We treat any status < 500 as "reachable" (3xx/4xx still means server is there).
+async function httpReachable(url, timeoutMs) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(url, {
-      method: "HEAD",
+      method: "GET",
       redirect: "follow",
-      signal: controller.signal
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (DowndetectorMonitor/1.0)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Range": "bytes=0-0"
+      }
     });
-    return res.ok;
+
+    return res.status < 500;
   } catch {
     return false;
   } finally {
@@ -122,10 +126,22 @@ function nowIso() {
 }
 
 function buildButtons(ddUrl) {
+  const quicklookUrl =
+    sources.telegram?.quicklookUrl || "https://atlas.ripe.net/use-cases/quicklook";
   return [
-    [{ text: "🧪 Quicklook (manual test)", url: sources.telegram?.quicklookUrl || "https://atlas.ripe.net/use-cases/quicklook" }],
+    [{ text: "🧪 Quicklook (manual test)", url: quicklookUrl }],
     [{ text: "🔎 Apri Downdetector", url: ddUrl }]
   ];
+}
+
+// Builds a compact line used in daily reports
+function dailyLine(f, ddThreshold) {
+  const ddPart =
+    typeof f.ddReports === "number"
+      ? `${f.ddReports >= ddThreshold ? "⚠️" : "—"} DD:${f.ddReports}`
+      : `${f.ddAbnormal ? "⚠️" : "—"} DD`;
+  const httpPart = f.httpIncident ? "❌ HTTP" : "✅ HTTP";
+  return `• ${f.name} — ${ddPart}, ${httpPart}`;
 }
 
 // -------------------- MAIN --------------------
@@ -133,13 +149,13 @@ function buildButtons(ddUrl) {
   const state = loadState();
 
   const timeoutMs = sources.http?.timeoutMs ?? 8000;
+
   const ddBaseUrl = sources.downdetector?.baseUrl ?? "https://downdetector.it/problemi";
   const ddThreshold = sources.downdetector?.reportsThreshold ?? 10;
   const ddWindowMin = sources.downdetector?.windowMinutes ?? 30;
 
-  // NetBlocks macro signal (optional)
-  let netblocksLatest = [];
   const nbEnabled = !!sources.netblocks?.enabled;
+  let netblocksLatest = [];
 
   if (nbEnabled) {
     netblocksLatest = await checkNetblocks({ watchPages: sources.netblocks.pages || [] });
@@ -148,14 +164,14 @@ function buildButtons(ddUrl) {
   const findings = [];
 
   for (const svc of services) {
-    // 1) HTTP reachability: at least one URL must be reachable
+    // HTTP: reachable if at least one endpoint answers with status < 500
     let okCount = 0;
     for (const u of svc.checkUrls || []) {
-      if (await httpHead(u, timeoutMs)) okCount++;
+      if (await httpReachable(u, timeoutMs)) okCount++;
     }
     const httpIncident = okCount === 0;
 
-    // 2) Downdetector abnormal: >= threshold in last window OR banner
+    // Downdetector
     const dd = await fetchDowndetector({
       baseUrl: ddBaseUrl,
       slug: svc.downdetectorSlug,
@@ -166,12 +182,15 @@ function buildButtons(ddUrl) {
     const ddAbnormal =
       (typeof ddReports === "number" && ddReports >= ddThreshold) || dd.banner === true;
 
-    // 3) NetBlocks match (best-effort) – optional
+    // NetBlocks match (optional, best-effort)
     const nbMatch = nbEnabled
-      ? netblocksLatest.some(x => (x.title || "").toLowerCase().includes((svc.name || "").toLowerCase()))
+      ? netblocksLatest.some(x =>
+          (x.title || "").toLowerCase().includes((svc.name || "").toLowerCase())
+        )
       : false;
 
-    // Incident rule (as requested): alert if DD abnormal OR HTTP down
+    // Alert rule as requested:
+    // - immediate alert if DD abnormal OR HTTP not reachable
     const isIncident = ddAbnormal || httpIncident;
 
     findings.push({
@@ -195,7 +214,7 @@ function buildButtons(ddUrl) {
         const ddLine =
           typeof f.ddReports === "number"
             ? `Downdetector: ⚠️ ${f.ddReports} segnalazioni (~${ddWindowMin} min)\n`
-            : `Downdetector: ⚠️ segnale (banner/heuristic)\n`;
+            : `Downdetector: ${f.ddAbnormal ? "⚠️ segnale (banner/heuristic)\n" : "—\n"}`;
 
         const msg =
           `🚨 DISERVIZIO RILEVATO\n` +
@@ -230,27 +249,30 @@ function buildButtons(ddUrl) {
 
     let body = `📌 REPORT GIORNALIERO (snapshot)\n${nowIso()}\n\n`;
 
-    for (const [cat, items] of Object.entries(byCat)) {
+    // Fixed order for readability
+    const order = ["streaming", "rete", "cloud", "social", "internet"];
+    for (const cat of order) {
+      if (!byCat[cat]) continue;
       body += `${catLabel(cat)}\n`;
-      for (const f of items) {
-        const ddPart =
-          typeof f.ddReports === "number"
-            ? `${f.ddReports >= ddThreshold ? "⚠️" : "—"} DD:${f.ddReports}`
-            : `${f.ddAbnormal ? "⚠️" : "—"} DD`;
-
-        const httpPart = f.httpIncident ? "❌ HTTP" : "✅ HTTP";
-        body += `• ${f.name} — ${ddPart}, ${httpPart}\n`;
+      for (const f of byCat[cat]) {
+        body += `${dailyLine(f, ddThreshold)}\n`;
       }
       body += "\n";
     }
 
-    await telegramSend(body, [
-      [{ text: "🧪 Quicklook (manual test)", url: sources.telegram?.quicklookUrl || "https://atlas.ripe.net/use-cases/quicklook" }]
-    ]);
+    // Any remaining categories not in order
+    for (const [cat, items] of Object.entries(byCat)) {
+      if (order.includes(cat)) continue;
+      body += `${catLabel(cat)}\n`;
+      for (const f of items) body += `${dailyLine(f, ddThreshold)}\n`;
+      body += "\n";
+    }
+
+    const quicklookUrl =
+      sources.telegram?.quicklookUrl || "https://atlas.ripe.net/use-cases/quicklook";
+
+    await telegramSend(body, [[{ text: "🧪 Quicklook (manual test)", url: quicklookUrl }]]);
   }
 
   saveState(state);
 })();
-
-  return state;
-}
