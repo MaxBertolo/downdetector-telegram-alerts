@@ -19,7 +19,8 @@
   { "name": "Iliad", "category": "rete", "downdetectorSlug": "iliad", "checkUrls": ["https://www.iliad.it"] },
 
   { "name": "Sky TV", "category": "streaming", "downdetectorSlug": "sky", "checkUrls": ["https://www.sky.it"] },
-  { "name": "Sky Wifi", "category": "rete", "downdetectorSlug": "sky-wifi", "checkUrls": ["https://www.skywifi.it"] },
+  { "name": "Sky Wifi", "category": "rete", "downdetectorSlug": "sky-wifi", "checkUrls": ["https://www.sky.it", "https://www.skywifi.it"] },
+
 
   { "name": "WindTre", "category": "rete", "downdetectorSlug": "wind", "checkUrls": ["https://www.windtre.it"] },
   { "name": "Fastweb", "category": "rete", "downdetectorSlug": "fastweb", "checkUrls": ["https://www.fastweb.it"] },
